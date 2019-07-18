@@ -26,9 +26,9 @@ package
 	
 	import com.luaye.console.C;
 	
-	import com.myflashlab.air.extensions.firebase.core.Firebase;
-	import com.myflashlab.air.extensions.firebase.core.FirebaseConfig;
+	import com.myflashlab.air.extensions.firebase.core.*;
 	import com.myflashlab.air.extensions.firebase.analytics.*;
+	import com.myflashlab.air.extensions.dependency.OverrideAir;
 	
 	
 	
@@ -142,9 +142,14 @@ package
 			}
 		}
 		
-		
 		private function init():void
 		{
+			// Remove OverrideAir debugger in production builds
+			OverrideAir.enableDebugger(function ($ane:String, $class:String, $msg:String):void
+			{
+				trace($ane+" ("+$class+") "+$msg);
+			});
+			
 			var isConfigFound:Boolean = Firebase.init();
 			
 			if (isConfigFound)
@@ -157,6 +162,7 @@ package
 				C.log("google_app_id = " + 					config.google_app_id);
 				C.log("google_crash_reporting_api_key = " + config.google_crash_reporting_api_key);
 				C.log("google_storage_bucket = " + 			config.google_storage_bucket);
+				C.log("project_id = " + 					config.project_id);
 				
 				initFirebaseAnalytics();
 			}
@@ -184,6 +190,20 @@ package
 				bundle.addString(AnalyticsParam.CONTENT_TYPE, "image");
 				
 				FirebaseAnalytics.logEvent(AnalyticsEvent.SELECT_CONTENT, bundle);
+			}
+			
+			var btn2:MySprite = createBtn("get app instance ID");
+			btn2.addEventListener(MouseEvent.CLICK, getAppInstanceID);
+			_list.add(btn2);
+			
+			function getAppInstanceID(e:MouseEvent):void
+			{
+				FirebaseAnalytics.getAppInstanceID(onResult);
+			}
+			
+			function onResult($id:String):void
+			{
+				C.log("AppInstanceID = " + $id);
 			}
 		}
 		

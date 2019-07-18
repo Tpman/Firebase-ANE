@@ -25,15 +25,16 @@ package
 	import flash.ui.Keyboard;
 	import flash.ui.Multitouch;
 	import flash.ui.MultitouchInputMode;
-	
-	import com.myflashlab.air.extensions.firebase.core.Firebase;
-	import com.myflashlab.air.extensions.firebase.core.FirebaseConfig;
-	import com.myflashlab.air.extensions.inspector.Inspector;
+
+	import com.myflashlab.air.extensions.dependency.OverrideAir;
+	import com.myflashlab.air.extensions.firebase.core.*;
 	
 	
 	/**
 	 * ...
 	 * @author Hadi Tavakoli - 5/28/2016 10:36 AM
+	 * 						 - 1/4/2017 7:39 PM
+	 * 						 - 9/10/2018 3:15 PM
 	 */
 	public class Main extends Sprite 
 	{
@@ -141,22 +142,18 @@ package
 			}
 		}
 		
-		
 		private function init():void
 		{
-			var isConfigFound:Boolean = Firebase.init();
-			
-			/*
-			 	How to use the inspector ANE: https://github.com/myflashlab/ANE-Inspector-Tool
-				You can use the same trick for all the other Child ANEs and other MyFlashLabs ANEs.
-				All you have to do is to pass the Class name of the target ANE to the check method.
-			*/
-			/*if (!Inspector.check(Firebase, true, true))
+			// Remove OverrideAir debugger in production builds
+			OverrideAir.enableDebugger(function ($ane:String, $class:String, $msg:String):void
 			{
-				trace("Inspector.lastError = " + Inspector.lastError);
-				return;
-			}*/
+				trace($ane+" ("+$class+") "+$msg);
+			});
 			
+			var isConfigFound:Boolean = Firebase.init();
+			Firebase.setLoggerLevel(FirebaseConfig.LOGGER_LEVEL_MAX);
+			Firebase.dataCollectionDefaultEnabled = true;
+
 			if (isConfigFound)
 			{
 				var config:FirebaseConfig = Firebase.getConfig();
@@ -167,6 +164,11 @@ package
 				C.log("google_app_id = " + 					config.google_app_id);
 				C.log("google_crash_reporting_api_key = " + config.google_crash_reporting_api_key);
 				C.log("google_storage_bucket = " + 			config.google_storage_bucket);
+				C.log("project_id = " + 					config.project_id);
+				
+				// You must initialize any of the other Firebase children after a successful initialization
+				// of the Core ANE.
+				readyToUseFirebase();
 			}
 			else
 			{
@@ -174,9 +176,51 @@ package
 			}
 		}
 		
+		private function readyToUseFirebase():void
+		{
+			Firebase.iid.addEventListener(FirebaseEvents.IID_TOKEN, onIdTokenReceived);
+			Firebase.iid.addEventListener(FirebaseEvents.IID_ID, onIdReceived);
+			
+			var btn1:MySprite = createBtn("get iid instanceId");
+			btn1.addEventListener(MouseEvent.CLICK, getInstanceId);
+			_list.add(btn1);
+			
+			function getInstanceId(e:MouseEvent):void
+			{
+				// you must be listening to FirebaseEvents.IID_TOKEN
+				Firebase.iid.getInstanceId();
+			}
+			
+			var btn2:MySprite = createBtn("get iid id");
+			btn2.addEventListener(MouseEvent.CLICK, getId);
+			_list.add(btn2);
+			
+			function getId(e:MouseEvent):void
+			{
+				Firebase.iid.getID();
+			}
+			
+			var btn4:MySprite = createBtn("delete iid");
+			btn4.addEventListener(MouseEvent.CLICK, deliid);
+			_list.add(btn4);
+			
+			function deliid(e:MouseEvent):void
+			{
+				Firebase.iid.deleteIID();
+			}
+			
+			onResize();
+		}
 		
+		private function onIdTokenReceived(e:FirebaseEvents):void
+		{
+			C.log("iidToken = "+e.iidToken);
+		}
 		
-		
+		private function onIdReceived(e:FirebaseEvents):void
+		{
+			C.log("iid id = "+e.iidID);
+		}
 		
 		
 		

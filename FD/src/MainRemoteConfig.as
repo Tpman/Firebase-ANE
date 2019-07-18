@@ -7,8 +7,9 @@ package
 	import com.doitflash.text.modules.MySprite;
 	
 	import com.luaye.console.C;
-	
-	import flash.desktop.NativeApplication;
+import com.myflashlab.air.extensions.dependency.OverrideAir;
+
+import flash.desktop.NativeApplication;
 	import flash.desktop.SystemIdleMode;
 	import flash.display.Sprite;
 	import flash.display.StageAlign;
@@ -26,10 +27,8 @@ package
 	import flash.ui.Multitouch;
 	import flash.ui.MultitouchInputMode;
 	
-	import com.myflashlab.air.extensions.firebase.core.Firebase;
-	import com.myflashlab.air.extensions.firebase.core.FirebaseConfig;
+	import com.myflashlab.air.extensions.firebase.core.*;
 	import com.myflashlab.air.extensions.firebase.remoteConfig.*;
-	import com.myflashlab.air.extensions.inspector.Inspector;
 	
 	
 	/**
@@ -142,9 +141,14 @@ package
 			}
 		}
 		
-		
 		private function init():void
 		{
+			// Remove OverrideAir debugger in production builds
+			OverrideAir.enableDebugger(function ($ane:String, $class:String, $msg:String):void
+			{
+				trace($ane+" ("+$class+") "+$msg);
+			});
+			
 			var isConfigFound:Boolean = Firebase.init();
 			
 			if (isConfigFound)
@@ -157,6 +161,7 @@ package
 				C.log("google_app_id = " + 					config.google_app_id);
 				C.log("google_crash_reporting_api_key = " + config.google_crash_reporting_api_key);
 				C.log("google_storage_bucket = " + 			config.google_storage_bucket);
+				C.log("project_id = " + 					config.project_id);
 				
 				initRemoteConfig();
 			}
@@ -169,22 +174,8 @@ package
 		
 		private function initRemoteConfig():void
 		{
-			/*
-				How to use the inspector ANE: https://github.com/myflashlab/ANE-Inspector-Tool
-				You can use the same trick for all the other Child ANEs and other MyFlashLabs ANEs.
-				All you have to do is to pass the Class name of the target ANE to the check method.
-			*/
-			/*if (!Inspector.check(Crash, true, true))
-			{
-				trace("Inspector.lastError = " + Inspector.lastError);
-				return;
-			}*/
-			
 			// initialize RemoteConfig only once in your app
 			RemoteConfig.init();
-			
-			// start listening to the fetch results
-			RemoteConfig.listener.addEventListener(RemoteConfigEvents.FETCH_RESULT, onFetched);
 			
 			// when developing, set this to true so the developer mode will be on
 			RemoteConfig.setConfigSettings(true);
@@ -203,7 +194,7 @@ package
 			
 			function fetch(e:MouseEvent):void
 			{
-				var cacheExpiration:Number = 3600; // 1 hour in seconds.
+				var cacheExpiration:Number = 3600; // 3600 seconds means 1 hour
 				
 				C.log("isDeveloperModeEnabled = " + RemoteConfig.isDeveloperModeEnabled);
 				
@@ -213,8 +204,20 @@ package
 					cacheExpiration = 0;
 				}
 				
-				// when you call fetch, make sure you are listening to the RemoteConfigEvents.FETCH_RESULT event to know the fetch result
-				RemoteConfig.fetch(cacheExpiration);
+				RemoteConfig.fetch(cacheExpiration, function ($error:Error):void
+				{
+					if($error)
+					{
+						C.log($error.message);
+					}
+					else
+					{
+						C.log("Fetch was successful, Now, let's call RemoteConfig.activateFetched() to activate the new data");
+						
+						// When you fetch the new information from server, you can activate them anytime you think is appropriate in your app
+						RemoteConfig.activateFetched();
+					}
+				});
 			}
 			
 			var btn2:MySprite = createBtn("get source");
@@ -250,21 +253,6 @@ package
 				var value:String = RemoteConfig.getValue("first_key", RemoteConfig.AS_STRING) as String;
 				
 				C.log("value = " + value);
-			}
-		}
-		
-		private function onFetched(e:RemoteConfigEvents):void
-		{
-			if (e.result == 1)
-			{
-				C.log("onFetched was successfull, Now, let's call RemoteConfig.activateFetched() to activate the new data");
-				
-				// When you fetch the new information from server, you can activate them anytime you think is appropriate in your app
-				RemoteConfig.activateFetched();
-			}
-			else
-			{
-				C.log("onFetched was NOT successfull");
 			}
 		}
 		

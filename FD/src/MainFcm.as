@@ -5,8 +5,6 @@ package
 	import com.doitflash.mobileProject.commonCpuSrc.DeviceInfo;
 	import com.doitflash.starling.utils.list.List;
 	import com.doitflash.text.modules.MySprite;
-	import flash.filesystem.File;
-	import flash.utils.setTimeout;
 	
 	import com.luaye.console.C;
 	
@@ -28,11 +26,10 @@ package
 	import flash.ui.Multitouch;
 	import flash.ui.MultitouchInputMode;
 	
-	import com.myflashlab.air.extensions.firebase.core.Firebase;
-	import com.myflashlab.air.extensions.firebase.core.FirebaseConfig;
+	import com.myflashlab.air.extensions.firebase.core.*;
 	import com.myflashlab.air.extensions.firebase.fcm.*;
+	import com.myflashlab.air.extensions.dependency.OverrideAir;
 	
-	import com.myflashlab.air.extensions.inspector.Inspector;
 	
 	
 	/**
@@ -155,9 +152,14 @@ package
 			}
 		}
 		
-		
 		private function init():void
 		{
+			// Remove OverrideAir debugger in production builds
+			OverrideAir.enableDebugger(function ($ane:String, $class:String, $msg:String):void
+			{
+				trace($ane+" ("+$class+") "+$msg);
+			});
+			
 			var isConfigFound:Boolean = Firebase.init();
 			
 			if (isConfigFound)
@@ -170,10 +172,11 @@ package
 				C.log("google_app_id = " + 					config.google_app_id);
 				C.log("google_crash_reporting_api_key = " + config.google_crash_reporting_api_key);
 				C.log("google_storage_bucket = " + 			config.google_storage_bucket);
+				C.log("project_id = " + 					config.project_id);
 				
 				// FCM needs Google Services so, before using FCM, we need to check that first.
 				// https://firebase.google.com/docs/cloud-messaging/android/client#sample-play
-				if (Firebase.os == Firebase.ANDROID) Firebase.checkGoogleAvailability(onCheckResult);
+				if (OverrideAir.os == OverrideAir.ANDROID) Firebase.checkGoogleAvailability(onCheckResult);
 				else onCheckResult(Firebase.SUCCESS);
 			}
 			else
@@ -226,9 +229,10 @@ package
 		
 		private function initFCM():void
 		{
-			FCM.init();
+			FCM.init(); 
 			FCM.listener.addEventListener(FcmEvents.TOKEN_REFRESH, onTokenRefresh);
 			FCM.listener.addEventListener(FcmEvents.MESSAGE, onMessage);
+			FCM.listener.addEventListener(FcmEvents.DELETED_MESSAGES, onDeletedMessages);
 			
 			var btn1:MySprite = createBtn("getToken");
 			btn1.addEventListener(MouseEvent.CLICK, getToken);
@@ -236,8 +240,22 @@ package
 			
 			function getToken(e:MouseEvent):void
 			{
-				C.log("token = " + FCM.getToken());
-				trace("token = " + FCM.getToken());
+				FCM.getInstanceId(onTokenReceived);
+			}
+			
+			function onTokenReceived($token:String, $error:String):void
+			{
+				if($error)
+				{
+					trace("onTokenReceived error: " + $error);
+					C.log("onTokenReceived error: " + $error);
+				}
+				
+				if($token)
+				{
+					trace("token: " + $token);
+					C.log("token: " + $token);
+				}
 			}
 			
 			var btn2:MySprite = createBtn("subscribe to 'news'");
@@ -246,6 +264,10 @@ package
 			
 			function subscribe(e:MouseEvent):void
 			{
+				// optionally you can listen to FcmEvents.ON_SUBSCRIBE to know the result
+				if(!FCM.listener.hasEventListener(FcmEvents.ON_SUBSCRIBE))
+					FCM.listener.addEventListener(FcmEvents.ON_SUBSCRIBE, onSubscribeResult);
+				
 				// It will take 24 hours before you can see this topic on the Firebase console
 				FCM.subscribeToTopic("news");
 			}
@@ -256,8 +278,24 @@ package
 			
 			function unsubscribe(e:MouseEvent):void
 			{
+				// optionally you can listen to FcmEvents.ON_UNSUBSCRIBE to know the result
+				if(!FCM.listener.hasEventListener(FcmEvents.ON_UNSUBSCRIBE))
+					FCM.listener.addEventListener(FcmEvents.ON_UNSUBSCRIBE, onUnsubscribeResult);
+				
 				FCM.unsubscribeFromTopic("news");
 			}
+		}
+		
+		private function onSubscribeResult(e:FcmEvents):void
+		{
+			trace("subscribe to topic " + e.topic + ": " + e.isSuccessful);
+			C.log("subscribe to topic " + e.topic + ": " + e.isSuccessful);
+		}
+		
+		private function onUnsubscribeResult(e:FcmEvents):void
+		{
+			trace("unsubscribe to topic " + e.topic + ": " + e.isSuccessful);
+			C.log("unsubscribe to topic " + e.topic + ": " + e.isSuccessful);
 		}
 		
 		private function onTokenRefresh(e:FcmEvents):void
@@ -266,9 +304,14 @@ package
 			C.log("onTokenRefresh = " + e.token);
 		}
 		
+		private function onDeletedMessages(e:FcmEvents):void
+		{
+			C.log("FcmEvents.DELETED_MESSAGES happened!");
+		}
+		
 		private function onMessage(e:FcmEvents):void
 		{
-			trace(e.msg)
+			trace(e.msg);
 			var payload:Object = FCM.parsePayloadFromString(e.msg);
 			
 			if (payload)
